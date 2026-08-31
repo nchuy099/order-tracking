@@ -1,0 +1,8 @@
+spring:
+  application:
+    name: OrderTracking
+
+  datasource:
+    url: jdbc:mysql://localhost:3306/order_tracking
+    username: root
+    password: password
