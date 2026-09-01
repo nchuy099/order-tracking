@@ -1,5 +1,8 @@
 package com.nchuy099.ordertracking.service.impl;
 
+import com.nchuy099.ordertracking.common.GenderEnum;
+import com.nchuy099.ordertracking.common.RoleEnum;
+import com.nchuy099.ordertracking.common.UserStatusEnum;
 import com.nchuy099.ordertracking.dto.request.CreateUserRequest;
 import com.nchuy099.ordertracking.entity.UserEntity;
 import com.nchuy099.ordertracking.repository.UserRepository;
@@ -27,8 +30,13 @@ public class UserServiceImpl implements UserService {
 
         UserEntity userEntity = new UserEntity();
         userEntity.setEmail(request.getEmail());
+        userEntity.setDateOfBirth(request.getDateOfBirth());
+        userEntity.setGender(GenderEnum.valueOf(request.getGender()));
+        userEntity.setPhoneNumber(request.getPhoneNumber());
         userEntity.setFullName(request.getFullName());
         userEntity.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+        userEntity.setRole(RoleEnum.valueOf(request.getRole()));
+        userEntity.setAvatarUrl(request.getAvatarUrl());
         userRepository.save(userEntity);
         return userEntity;
     }

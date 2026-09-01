@@ -2,6 +2,7 @@ package com.nchuy099.ordertracking.entity;
 
 import com.nchuy099.ordertracking.common.GenderEnum;
 import com.nchuy099.ordertracking.common.RoleEnum;
+import com.nchuy099.ordertracking.common.UserStatusEnum;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -33,15 +34,23 @@ public class UserEntity extends BaseEntity {
 
     private LocalDate dateOfBirth;
 
+    @Enumerated(EnumType.STRING)
     private GenderEnum gender;
 
     @Column(unique = true)
     private String email;
 
+    private String phoneNumber;
+
     private String passwordHash;
 
     @Column(nullable = false)
+    @Enumerated(EnumType.STRING)
     private RoleEnum role;
 
+    @Enumerated(EnumType.STRING)
+    private UserStatusEnum status = UserStatusEnum.ACTIVE;
+
     private String avatarUrl;
+
 }

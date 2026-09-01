@@ -1,0 +1,20 @@
+package com.nchuy099.ordertracking.repository;
+
+import com.nchuy099.ordertracking.entity.InventoryEntity;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+
+import java.util.Optional;
+import java.util.UUID;
+
+public interface InventoryRepository extends JpaRepository<InventoryEntity, UUID> {
+
+    @Query("""
+        SELECT COALESCE(SUM(i.quantityInStock), 0)
+        FROM InventoryEntity i
+        WHERE i.productVariant.id = :productVariantId
+    """)
+    Integer getQuantityInStockByProductVariantId(UUID productVariantId);
+
+    Optional<InventoryEntity> findByWarehouseIdAndProductVariantId(UUID warehouseId, UUID productVariantId);
+}
