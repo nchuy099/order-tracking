@@ -13,6 +13,7 @@ import org.hibernate.annotations.UuidGenerator;
 import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 @Table(name = "users")
@@ -52,5 +53,8 @@ public class UserEntity extends BaseEntity {
     private UserStatusEnum status = UserStatusEnum.ACTIVE;
 
     private String avatarUrl;
+
+    @OneToMany(mappedBy = "user")
+    private List<UserAddressEntity> addresses;
 
 }

@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 @Getter
 @Setter
 public class PlaceOrderRequest {
+    private String userAddressId;
     private String recipientName;
     private String recipientPhone;
     private String shippingAddress;

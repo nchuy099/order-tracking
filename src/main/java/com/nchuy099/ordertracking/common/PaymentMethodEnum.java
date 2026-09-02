@@ -2,7 +2,5 @@ package com.nchuy099.ordertracking.common;
 
 public enum PaymentMethodEnum {
     COD,
-    VNPAY,
-    MOMO,
-    STRIPE
+    BANK_TRANSFER
 }

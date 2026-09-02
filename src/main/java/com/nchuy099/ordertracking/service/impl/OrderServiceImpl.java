@@ -31,7 +31,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class OrderServiceImpl implements OrderService {
 
-    private static final BigDecimal DEFAULT_SHIPPING_FEE = BigDecimal.ZERO;
+    private static final BigDecimal DEFAULT_SHIPPING_FEE = BigDecimal.valueOf(30000);
     private static final DateTimeFormatter CODE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     private final UserRepository userRepository;
@@ -42,14 +42,18 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final PaymentRepository paymentRepository;
+    private final UserAddressRepository userAddressRepository;
 
     @Override
     public OrderSummaryResponse getSummary(OrderSummaryRequest request) {
+        // get cart
         UserEntity user = getCurrentUserEntity();
         List<CartItemEntity> cartItems = getCartItems(user);
+
+        // calc summary
         BigDecimal subTotal = calculateSubTotal(cartItems);
         BigDecimal discountAmount = calculateDiscountAmount(request.getDiscountCode(), subTotal);
-        BigDecimal shippingFee = request.getShippingFee() == null ? DEFAULT_SHIPPING_FEE : request.getShippingFee();
+        BigDecimal shippingFee = DEFAULT_SHIPPING_FEE;
 
         return OrderSummaryResponse.builder()
                 .subTotal(subTotal)
@@ -62,11 +66,16 @@ public class OrderServiceImpl implements OrderService {
     @Transactional
     @Override
     public PlaceOrderResponse placeOrder(PlaceOrderRequest request) {
+        // get cart
         UserEntity user = getCurrentUserEntity();
-        CartEntity cart = cartRepository.findByUserId(user.getId())
-                .orElseThrow(() -> new BusinessException("CART_NOT_FOUND",
-                        "Cart not found",
-                        HttpStatus.NOT_FOUND));
+        Optional<CartEntity> cartOpt = cartRepository.findByUserId(user.getId());
+        if (cartOpt.isEmpty()) {
+            throw new BusinessException("CART_NOT_FOUND",
+                    "Cart not found",
+                    HttpStatus.NOT_FOUND);
+        }
+
+        CartEntity cart = cartOpt.get();
         List<CartItemEntity> cartItems = cartItemRepository.findCartItemsByCartId(cart.getId());
         if (cartItems.isEmpty()) {
             throw new BusinessException("CART_EMPTY",
@@ -74,19 +83,25 @@ public class OrderServiceImpl implements OrderService {
                     HttpStatus.BAD_REQUEST);
         }
 
+        // check stock
         checkInventory(cartItems);
 
+        // calc summary
         BigDecimal subTotal = calculateSubTotal(cartItems);
         BigDecimal discountAmount = calculateDiscountAmount(request.getDiscountCode(), subTotal);
         BigDecimal shippingFee = request.getShippingFee() == null ? DEFAULT_SHIPPING_FEE : request.getShippingFee();
         BigDecimal grandTotal = subTotal.subtract(discountAmount).add(shippingFee);
 
+        // get user address
+        UserAddressEntity userAddress = getUserAddress(request.getUserAddressId(), user.getId());
+
+        // create order
         OrderEntity order = OrderEntity.builder()
                 .code(generateOrderCode())
                 .status(OrderStatusEnum.AWAITING_PAYMENT)
-                .recipientName(request.getRecipientName())
-                .recipientPhone(request.getRecipientPhone())
-                .shippingAddress(request.getShippingAddress())
+                .recipientName(userAddress.getRecipientName())
+                .recipientPhone(userAddress.getRecipientPhone())
+                .shippingAddress(buildShippingAddress(userAddress))
                 .subTotal(subTotal)
                 .discountAmount(discountAmount)
                 .shippingFee(shippingFee)
@@ -97,6 +112,7 @@ public class OrderServiceImpl implements OrderService {
                 .build();
         orderRepository.save(order);
 
+        // create order item
         for (CartItemEntity cartItem : cartItems) {
             ProductVariantEntity productVariant = cartItem.getProductVariant();
             OrderItemEntity orderItem = OrderItemEntity.builder()
@@ -111,6 +127,7 @@ public class OrderServiceImpl implements OrderService {
             orderItemRepository.save(orderItem);
         }
 
+        // create payment
         PaymentEntity payment = PaymentEntity.builder()
                 .order(order)
                 .paymentCode(generatePaymentCode())
@@ -121,6 +138,7 @@ public class OrderServiceImpl implements OrderService {
                 .build();
         paymentRepository.save(payment);
 
+        // del cart items
         cartItemRepository.deleteAll(cartItems);
 
         return PlaceOrderResponse.builder()
@@ -133,18 +151,60 @@ public class OrderServiceImpl implements OrderService {
     }
 
     private List<CartItemEntity> getCartItems(UserEntity user) {
-        CartEntity cart = cartRepository.findByUserId(user.getId())
-                .orElseThrow(() -> new BusinessException("CART_NOT_FOUND",
-                        "Cart not found",
-                        HttpStatus.NOT_FOUND));
+        Optional<CartEntity> cartOpt = cartRepository.findByUserId(user.getId());
+        if (cartOpt.isEmpty()) {
+            throw new BusinessException("CART_NOT_FOUND",
+                    "Cart not found",
+                    HttpStatus.NOT_FOUND);
+        }
+
+        CartEntity cart = cartOpt.get();
         return cartItemRepository.findCartItemsByCartId(cart.getId());
     }
 
+    private UserAddressEntity getUserAddress(String userAddressId, UUID userId) {
+        UUID addressId = UUID.fromString(userAddressId);
+        Optional<UserAddressEntity> userAddressOpt = userAddressRepository.findByIdAndUserId(addressId, userId);
+
+        if (userAddressOpt.isEmpty()) {
+            throw new BusinessException("USER_ADDRESS_NOT_FOUND",
+                    "User address not found",
+                    HttpStatus.NOT_FOUND);
+        }
+
+        return userAddressOpt.get();
+    }
+
+    private String buildShippingAddress(UserAddressEntity userAddress) {
+        String shippingAddress = userAddress.getDetailAddress();
+
+        if (userAddress.getWard() != null && !userAddress.getWard().isBlank()) {
+            shippingAddress = shippingAddress + ", " + userAddress.getWard();
+        }
+
+        if (userAddress.getDistrict() != null && !userAddress.getDistrict().isBlank()) {
+            shippingAddress = shippingAddress + ", " + userAddress.getDistrict();
+        }
+
+        if (userAddress.getProvince() != null && !userAddress.getProvince().isBlank()) {
+            shippingAddress = shippingAddress + ", " + userAddress.getProvince();
+        }
+
+        return shippingAddress;
+    }
+
     private BigDecimal calculateSubTotal(List<CartItemEntity> cartItems) {
-        return cartItems.stream()
-                .map(cartItem -> cartItem.getProductVariant().getPrice()
-                        .multiply(BigDecimal.valueOf(cartItem.getQuantity())))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal subTotal = BigDecimal.ZERO;
+
+        for (CartItemEntity cartItem : cartItems) {
+            BigDecimal unitPrice = cartItem.getProductVariant().getPrice();
+            BigDecimal quantity = BigDecimal.valueOf(cartItem.getQuantity());
+            BigDecimal itemTotal = unitPrice.multiply(quantity);
+
+            subTotal = subTotal.add(itemTotal);
+        }
+
+        return subTotal;
     }
 
     private BigDecimal calculateDiscountAmount(String discountCode, BigDecimal subTotal) {
@@ -152,21 +212,24 @@ public class OrderServiceImpl implements OrderService {
             return BigDecimal.ZERO;
         }
 
-        DiscountEntity discount = discountRepository.findByCode(discountCode)
-                .orElseThrow(() -> new BusinessException("DISCOUNT_NOT_FOUND",
-                        "Discount not found",
-                        HttpStatus.NOT_FOUND));
+        Optional<DiscountEntity> discountOpt = discountRepository.findByCode(discountCode);
+        if (discountOpt.isEmpty()) {
+            throw new BusinessException("DISCOUNT_NOT_FOUND",
+                    "Discount not found",
+                    HttpStatus.NOT_FOUND);
+        }
 
+        DiscountEntity discount = discountOpt.get();
         BigDecimal discountAmount;
+
         if (discount.getType() == DiscountTypeEnum.PERCENTAGE) {
             discountAmount = subTotal.multiply(discount.getValue())
                     .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
             if (discount.getMaxDiscountAmount() != null) {
                 discountAmount = discountAmount.min(discount.getMaxDiscountAmount());
             }
-        } else {
-            discountAmount = discount.getValue();
-        }
+        } else discountAmount = discount.getValue();
+
 
         return discountAmount.min(subTotal);
     }
@@ -175,6 +238,7 @@ public class OrderServiceImpl implements OrderService {
         for (CartItemEntity cartItem : cartItems) {
             UUID productVariantId = cartItem.getProductVariant().getId();
             Integer quantityInStock = inventoryRepository.getQuantityInStockByProductVariantId(productVariantId);
+
             if (quantityInStock < cartItem.getQuantity()) {
                 throw new BusinessException("INSUFFICIENT_INVENTORY",
                         "Product variant not enough stock",
