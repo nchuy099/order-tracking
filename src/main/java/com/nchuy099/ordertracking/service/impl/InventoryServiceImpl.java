@@ -28,7 +28,7 @@ public class InventoryServiceImpl implements InventoryService {
 
     @Transactional
     @Override
-    public ImportStockResponse importStock(ImportStockRequest request) {
+    public void importStock(ImportStockRequest request) {
         UUID warehouseId = UUID.fromString(request.getWarehouseId());
         UUID productVariantId = UUID.fromString(request.getProductVariantId());
 
@@ -56,12 +56,5 @@ public class InventoryServiceImpl implements InventoryService {
 
         inventory.setQuantityInStock(inventory.getQuantityInStock() + request.getQuantity());
         inventoryRepository.save(inventory);
-
-        return ImportStockResponse.builder()
-                .inventoryId(inventory.getId().toString())
-                .warehouseId(warehouseId.toString())
-                .productVariantId(productVariantId.toString())
-                .quantityInStock(inventory.getQuantityInStock())
-                .build();
     }
 }

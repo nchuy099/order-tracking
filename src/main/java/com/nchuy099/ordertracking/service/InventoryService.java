@@ -5,5 +5,5 @@ import com.nchuy099.ordertracking.dto.response.ImportStockResponse;
 
 public interface InventoryService {
 
-    ImportStockResponse importStock(ImportStockRequest request);
+    void importStock(ImportStockRequest request);
 }
