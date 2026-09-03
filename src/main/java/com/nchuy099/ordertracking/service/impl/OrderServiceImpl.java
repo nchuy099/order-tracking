@@ -89,7 +89,7 @@ public class OrderServiceImpl implements OrderService {
         // calc summary
         BigDecimal subTotal = calculateSubTotal(cartItems);
         BigDecimal discountAmount = calculateDiscountAmount(request.getDiscountCode(), subTotal);
-        BigDecimal shippingFee = request.getShippingFee() == null ? DEFAULT_SHIPPING_FEE : request.getShippingFee();
+        BigDecimal shippingFee = DEFAULT_SHIPPING_FEE;
         BigDecimal grandTotal = subTotal.subtract(discountAmount).add(shippingFee);
 
         // get user address

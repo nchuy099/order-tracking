@@ -31,12 +31,23 @@ public class UserServiceImpl implements UserService {
         UserEntity userEntity = new UserEntity();
         userEntity.setEmail(request.getEmail());
         userEntity.setDateOfBirth(request.getDateOfBirth());
-        userEntity.setGender(GenderEnum.valueOf(request.getGender()));
         userEntity.setPhoneNumber(request.getPhoneNumber());
         userEntity.setFullName(request.getFullName());
         userEntity.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         userEntity.setRole(RoleEnum.valueOf(request.getRole()));
-        userEntity.setAvatarUrl(request.getAvatarUrl());
+
+        if (request.getGender() != null) {
+            userEntity.setGender(GenderEnum.valueOf(request.getGender()));
+        }
+
+        if (request.getStatus() != null) {
+            userEntity.setStatus(UserStatusEnum.valueOf(request.getStatus()));
+        }
+
+        if (request.getAvatarUrl() != null) {
+            userEntity.setAvatarUrl(request.getAvatarUrl());
+        }
+
         userRepository.save(userEntity);
         return userEntity;
     }
