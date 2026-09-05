@@ -107,7 +107,7 @@ public class OrderServiceImpl implements OrderService {
                 .shippingFee(shippingFee)
                 .grandTotal(grandTotal)
                 .note(request.getNote())
-                .orderedAt(LocalDateTime.now())
+//                .orderedAt(LocalDateTime.now())
                 .user(user)
                 .build();
         orderRepository.save(order);
@@ -149,6 +149,7 @@ public class OrderServiceImpl implements OrderService {
                 .grandTotal(grandTotal)
                 .build();
     }
+
 
     private List<CartItemEntity> getCartItems(UserEntity user) {
         Optional<CartEntity> cartOpt = cartRepository.findByUserId(user.getId());

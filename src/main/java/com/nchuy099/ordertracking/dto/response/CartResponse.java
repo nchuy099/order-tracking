@@ -1,5 +1,6 @@
 package com.nchuy099.ordertracking.dto.response;
 
+import com.nchuy099.ordertracking.common.StockStatusEnum;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
@@ -24,5 +25,6 @@ public class CartResponse {
         private String productVariantSku;
         private Integer quantity;
         private BigDecimal price;
+        private StockStatusEnum stockStatus;
     }
 }

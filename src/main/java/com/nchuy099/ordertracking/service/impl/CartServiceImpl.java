@@ -1,6 +1,7 @@
 package com.nchuy099.ordertracking.service.impl;
 
 import com.nchuy099.ordertracking.config.CustomUserDetailService;
+import com.nchuy099.ordertracking.common.StockStatusEnum;
 import com.nchuy099.ordertracking.dto.request.CartRequest;
 import com.nchuy099.ordertracking.dto.request.CreateCategoryRequest;
 import com.nchuy099.ordertracking.dto.response.CartResponse;
@@ -24,6 +25,8 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class CartServiceImpl implements CartService {
+
+    private static final int LIMITED_STOCK = 10;
 
     private final ProductVariantRepository productVariantRepository;
 
@@ -60,12 +63,16 @@ public class CartServiceImpl implements CartService {
         List<CartResponse.CartItemResponse> cartItemResponses = new ArrayList<>();
 
         for (CartItemEntity cartItem: cartItems) {
+            Integer quantityInStock = inventoryRepository.getQuantityInStockByProductVariantId(
+                    cartItem.getProductVariant().getId());
+
             CartResponse.CartItemResponse cartItemResponse = CartResponse.CartItemResponse.builder()
                     .productId(cartItem.getProductVariant().getProduct().getId().toString())
                     .productName(cartItem.getProductVariant().getProduct().getName())
                     .productVariantSku(cartItem.getProductVariant().getSku())
                     .quantity(cartItem.getQuantity())
                     .price(cartItem.getProductVariant().getPrice())
+                    .stockStatus(getStockStatus(quantityInStock))
                     .build();
             cartItemResponses.add(cartItemResponse);
         }
@@ -73,6 +80,12 @@ public class CartServiceImpl implements CartService {
         return CartResponse.builder()
                 .cartItems(cartItemResponses)
                 .build();
+    }
+
+    private StockStatusEnum getStockStatus(Integer quantityInStock) {
+        if (quantityInStock == null || quantityInStock <= 0)  return StockStatusEnum.OUT_OF_STOCK;
+        if (quantityInStock < LIMITED_STOCK) return StockStatusEnum.LIMITED_STOCK;
+        return StockStatusEnum.IN_STOCK;
     }
 
 
