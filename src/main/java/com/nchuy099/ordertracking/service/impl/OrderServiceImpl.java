@@ -132,11 +132,14 @@ public class OrderServiceImpl implements OrderService {
                 .order(order)
                 .paymentCode(generatePaymentCode())
                 .method(getPaymentMethod(request.getPaymentMethod()))
-                .status(PaymentStatusEnum.UNPAID)
+                .status(PaymentStatusEnum.PENDING)
                 .amount(grandTotal)
                 .expiredAt(LocalDateTime.now().plusMinutes(15))
                 .build();
         paymentRepository.save(payment);
+
+        // decrea  stock
+        decreaseInventory(cartItems);
 
         // del cart items
         cartItemRepository.deleteAll(cartItems);
@@ -241,6 +244,32 @@ public class OrderServiceImpl implements OrderService {
             Integer quantityInStock = inventoryRepository.getQuantityInStockByProductVariantId(productVariantId);
 
             if (quantityInStock < cartItem.getQuantity()) {
+                throw new BusinessException("INSUFFICIENT_INVENTORY",
+                        "Product variant not enough stock",
+                        HttpStatus.BAD_REQUEST);
+            }
+        }
+    }
+
+    private void decreaseInventory(List<CartItemEntity> cartItems) {
+        for (CartItemEntity cartItem : cartItems) {
+            UUID productVariantId = cartItem.getProductVariant().getId();
+            int remainingQuantity = cartItem.getQuantity();
+            List<InventoryEntity> inventories = inventoryRepository.findAllByProductVariantId(productVariantId);
+
+            for (InventoryEntity inventory : inventories) {
+                if (remainingQuantity <= 0) {
+                    break;
+                }
+
+                int availableQuantity = inventory.getQuantityInStock();
+                int deductedQuantity = Math.min(availableQuantity, remainingQuantity);
+                inventory.setQuantityInStock(availableQuantity - deductedQuantity);
+                inventoryRepository.save(inventory);
+                remainingQuantity -= deductedQuantity;
+            }
+
+            if (remainingQuantity > 0) {
                 throw new BusinessException("INSUFFICIENT_INVENTORY",
                         "Product variant not enough stock",
                         HttpStatus.BAD_REQUEST);
