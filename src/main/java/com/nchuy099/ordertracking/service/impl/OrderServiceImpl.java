@@ -84,7 +84,7 @@ public class OrderServiceImpl implements OrderService {
         }
 
         // check stock
-        checkInventory(cartItems);
+//        checkInventory(cartItems);
 
         // calc summary
         BigDecimal subTotal = calculateSubTotal(cartItems);
@@ -139,8 +139,8 @@ public class OrderServiceImpl implements OrderService {
         paymentRepository.save(payment);
 
         // decrea  stock
-        decreaseInventory(cartItems);
-
+//        decreaseInventory(cartItems);
+    decreaseInventoryWithLock(cartItems);
         // del cart items
         cartItemRepository.deleteAll(cartItems);
 
@@ -248,6 +248,48 @@ public class OrderServiceImpl implements OrderService {
                         "Product variant not enough stock",
                         HttpStatus.BAD_REQUEST);
             }
+        }
+    }
+
+    private void decreaseInventoryWithLock(List<CartItemEntity> cartItems) {
+        for (CartItemEntity cartItem: cartItems) {
+            UUID productVariantId = cartItem.getProductVariant().getId();
+
+            List<InventoryEntity> inventories = inventoryRepository
+                    .findAllByProductVariantIdForUpdate(productVariantId);
+
+            int totalQuantityInStock = 0;
+
+            for (InventoryEntity inventory: inventories) {
+                totalQuantityInStock += inventory.getQuantityInStock();
+            }
+
+            if (totalQuantityInStock < cartItem.getQuantity()) {
+                throw new BusinessException(
+                        "INSUFFICIENT_INVENTORY",
+                        "Product variant not enough stock",
+                        HttpStatus.BAD_REQUEST
+                );
+            }
+
+            int remainingQuantity = cartItem.getQuantity();
+
+            for (InventoryEntity inventory : inventories) {
+                if (remainingQuantity == 0) {
+                    break;
+                }
+
+                int availableQuantity = inventory.getQuantityInStock();
+                int deductedQuantity = Math.min(availableQuantity,
+                        remainingQuantity);
+
+                inventory.setQuantityInStock(availableQuantity -
+                        deductedQuantity);
+                remainingQuantity -= deductedQuantity;
+            }
+
+
+
         }
     }
 
