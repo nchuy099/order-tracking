@@ -7,6 +7,7 @@ import com.nchuy099.ordertracking.dto.response.PlaceOrderResponse;
 import com.nchuy099.ordertracking.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -20,12 +21,14 @@ public class OrderController {
     private final OrderService orderService;
 
     @PostMapping("/summary")
+    @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<OrderSummaryResponse> getSummary(@RequestBody OrderSummaryRequest request) {
         OrderSummaryResponse response = orderService.getSummary(request);
         return ResponseEntity.ok(response);
     }
 
     @PostMapping
+    @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<PlaceOrderResponse> placeOrder(@RequestBody PlaceOrderRequest request) {
         PlaceOrderResponse response = orderService.placeOrder(request);
         return ResponseEntity.ok(response);

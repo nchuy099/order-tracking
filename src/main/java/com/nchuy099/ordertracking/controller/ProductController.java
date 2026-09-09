@@ -8,6 +8,7 @@ import com.nchuy099.ordertracking.service.CategoryService;
 import com.nchuy099.ordertracking.service.ProductService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -22,6 +23,7 @@ public class ProductController {
 
 
     @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ProductEntity> create(@RequestBody CreateProductRequest request) {
         ProductEntity product  = productService.create(request);
     return ResponseEntity.ok(product);

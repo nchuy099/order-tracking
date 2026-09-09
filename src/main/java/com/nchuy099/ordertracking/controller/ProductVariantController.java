@@ -8,6 +8,7 @@ import com.nchuy099.ordertracking.service.ProductService;
 import com.nchuy099.ordertracking.service.ProductVariantService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -22,6 +23,7 @@ public class ProductVariantController {
 
 
     @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ProductVariantEntity> create(@RequestBody CreateProductVariantRequest request) {
         ProductVariantEntity variant  = productVariantService.create(request);
     return ResponseEntity.ok(variant);

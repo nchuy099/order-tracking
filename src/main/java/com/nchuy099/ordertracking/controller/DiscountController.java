@@ -5,6 +5,7 @@ import com.nchuy099.ordertracking.entity.DiscountEntity;
 import com.nchuy099.ordertracking.service.DiscountService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -21,12 +22,14 @@ public class DiscountController {
     private final DiscountService discountService;
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'ADMIN')")
     public ResponseEntity<List<DiscountEntity>> getAll() {
         List<DiscountEntity> discounts = discountService.getAll();
         return ResponseEntity.ok(discounts);
     }
 
     @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<DiscountEntity> create(@RequestBody CreateDiscountRequest request) {
         DiscountEntity discount = discountService.create(request);
         return ResponseEntity.ok(discount);

@@ -9,6 +9,7 @@ import com.nchuy099.ordertracking.service.CartService;
 import com.nchuy099.ordertracking.service.CategoryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -19,6 +20,7 @@ public class CartController {
     private final CartService cartService;
 
     @GetMapping
+    @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<CartResponse> get() {
         CartResponse cartResponse = cartService.get();
         return ResponseEntity.ok(cartResponse);
@@ -26,12 +28,14 @@ public class CartController {
 
 
     @PostMapping("/items")
+    @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<Void> addItem(@RequestBody CartRequest request) {
     cartService.addItem(request);
     return ResponseEntity.ok(null);
     }
 
     @PutMapping("/items")
+    @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<Void> updateItemQuantity(@RequestBody CartRequest request) {
         cartService.updateItemQuantity(request);
         return ResponseEntity.ok(null);
