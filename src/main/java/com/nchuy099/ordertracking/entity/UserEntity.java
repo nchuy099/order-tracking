@@ -38,9 +38,10 @@ public class UserEntity extends BaseEntity {
     @Enumerated(EnumType.STRING)
     private GenderEnum gender;
 
-    @Column(unique = true)
+    @Column(nullable = false, unique = true)
     private String email;
 
+    @Column(nullable = false, unique = true)
     private String phoneNumber;
 
     private String passwordHash;
