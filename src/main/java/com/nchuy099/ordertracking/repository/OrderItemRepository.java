@@ -20,4 +20,14 @@ public interface OrderItemRepository extends JpaRepository<OrderItemEntity, UUID
             WHERE orderItem.order.id = :orderId
             """)
     List<OrderItemEntity> findAllByOrderIdWithProduct(@Param("orderId") UUID orderId);
+
+    @Query("""
+            SELECT orderItem
+            FROM OrderItemEntity orderItem
+            JOIN FETCH orderItem.productVariant productVariant
+            JOIN FETCH productVariant.product
+            WHERE orderItem.order.id IN :orderIds
+            ORDER BY orderItem.createdAt ASC
+            """)
+    List<OrderItemEntity> findAllByOrderIdInWithProduct(@Param("orderIds") List<UUID> orderIds);
 }
