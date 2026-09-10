@@ -24,6 +24,16 @@ public interface InventoryRepository extends JpaRepository<InventoryEntity, UUID
 
     List<InventoryEntity> findAllByProductVariantId(UUID productVariantId);
 
+    @Query("""
+        SELECT inventory FROM InventoryEntity inventory
+        JOIN FETCH inventory.warehouse
+        WHERE inventory.productVariant.id = :productVariantId
+        ORDER BY inventory.warehouse.code
+    """)
+    List<InventoryEntity> findAllByProductVariantIdWithWarehouse(
+            @Param("productVariantId") UUID productVariantId
+    );
+
     Optional<InventoryEntity> findByWarehouseIdAndProductVariantId(UUID warehouseId, UUID productVariantId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

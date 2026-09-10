@@ -2,6 +2,7 @@ package com.nchuy099.ordertracking.service.impl;
 
 import com.nchuy099.ordertracking.dto.request.ImportStockRequest;
 import com.nchuy099.ordertracking.dto.response.ImportStockResponse;
+import com.nchuy099.ordertracking.dto.response.ProductVariantInventoryResponse;
 import com.nchuy099.ordertracking.entity.InventoryEntity;
 import com.nchuy099.ordertracking.entity.ProductVariantEntity;
 import com.nchuy099.ordertracking.entity.WarehouseEntity;
@@ -16,6 +17,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
+import java.util.List;
+import java.util.ArrayList;
 import java.util.UUID;
 
 @Service
@@ -56,5 +59,39 @@ public class InventoryServiceImpl implements InventoryService {
 
         inventory.setQuantityInStock(inventory.getQuantityInStock() + request.getQuantity());
         inventoryRepository.save(inventory);
+    }
+
+    @Override
+    @Transactional
+    public ProductVariantInventoryResponse getByProductVariantId(UUID productVariantId) {
+        ProductVariantEntity productVariant = productVariantRepository.findById(productVariantId)
+                .orElseThrow(() -> new BusinessException(
+                        "PRODUCT_VARIANT_NOT_FOUND",
+                        "Product variant not found",
+                        HttpStatus.NOT_FOUND
+                ));
+
+        List<ProductVariantInventoryResponse.WarehouseInventoryResponse> inventories = new ArrayList<>();
+        int totalQuantityInStock = 0;
+
+        for (InventoryEntity inventory : inventoryRepository.findAllByProductVariantIdWithWarehouse(productVariantId)) {
+            inventories.add(ProductVariantInventoryResponse.WarehouseInventoryResponse.builder()
+                        .inventoryId(inventory.getId())
+                        .warehouseId(inventory.getWarehouse().getId())
+                        .warehouseCode(inventory.getWarehouse().getCode())
+                        .warehouseName(inventory.getWarehouse().getName())
+                        .warehouseIsActive(inventory.getWarehouse().getActive())
+                        .quantityInStock(inventory.getQuantityInStock())
+                        .build());
+            totalQuantityInStock += inventory.getQuantityInStock() == null ? 0 : inventory.getQuantityInStock();
+        }
+
+        return ProductVariantInventoryResponse.builder()
+                .productVariantId(productVariant.getId())
+                .sku(productVariant.getSku())
+                .variantName(productVariant.getName())
+                .totalQuantityInStock(totalQuantityInStock)
+                .inventories(inventories)
+                .build();
     }
 }
