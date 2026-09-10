@@ -53,6 +53,8 @@ public class OrderEntity extends BaseEntity {
 
     private LocalDateTime cancelledAt;
 
+    private LocalDateTime completedAt;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", referencedColumnName = "id")
     private UserEntity user;

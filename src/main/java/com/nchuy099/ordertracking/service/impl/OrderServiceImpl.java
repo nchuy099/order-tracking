@@ -7,6 +7,7 @@ import com.nchuy099.ordertracking.common.PaymentStatusEnum;
 import com.nchuy099.ordertracking.dto.request.OrderSummaryRequest;
 import com.nchuy099.ordertracking.dto.request.PlaceOrderRequest;
 import com.nchuy099.ordertracking.dto.response.OrderSummaryResponse;
+import com.nchuy099.ordertracking.dto.response.OrderDetailResponse;
 import com.nchuy099.ordertracking.dto.response.PlaceOrderResponse;
 import com.nchuy099.ordertracking.entity.*;
 import com.nchuy099.ordertracking.exception.BusinessException;
@@ -98,7 +99,7 @@ public class OrderServiceImpl implements OrderService {
         // create order
         OrderEntity order = OrderEntity.builder()
                 .code(generateOrderCode())
-                .status(OrderStatusEnum.AWAITING_PAYMENT)
+                .status(OrderStatusEnum.PENDING)
                 .recipientName(userAddress.getRecipientName())
                 .recipientPhone(userAddress.getRecipientPhone())
                 .shippingAddress(buildShippingAddress(userAddress))
@@ -107,7 +108,7 @@ public class OrderServiceImpl implements OrderService {
                 .shippingFee(shippingFee)
                 .grandTotal(grandTotal)
                 .note(request.getNote())
-//                .orderedAt(LocalDateTime.now())
+                .orderedAt(LocalDateTime.now())
                 .user(user)
                 .build();
         orderRepository.save(order);
@@ -150,6 +151,83 @@ public class OrderServiceImpl implements OrderService {
                 .paymentId(payment.getId().toString())
                 .paymentCode(payment.getPaymentCode())
                 .grandTotal(grandTotal)
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public OrderDetailResponse getDetails(UUID orderId) {
+        OrderEntity order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new BusinessException(
+                        "ORDER_NOT_FOUND",
+                        "Order not found",
+                        HttpStatus.NOT_FOUND
+                ));
+
+        UserEntity currentUser = getCurrentUserEntity();
+        boolean isAdmin = SecurityContextHolder.getContext().getAuthentication()
+                .getAuthorities()
+                .stream()
+                .anyMatch(authority -> authority.getAuthority().equals("ROLE_ADMIN"));
+
+        if (!isAdmin && !order.getUser().getId().equals(currentUser.getId())) {
+            throw new BusinessException(
+                    "ORDER_ACCESS_DENIED",
+                    "You do not have permission to view this order",
+                    HttpStatus.FORBIDDEN
+            );
+        }
+
+        List<OrderDetailResponse.OrderItemResponse> items = orderItemRepository
+                .findAllByOrderIdWithProduct(orderId)
+                .stream()
+                .map(orderItem -> OrderDetailResponse.OrderItemResponse.builder()
+                        .orderItemId(orderItem.getId())
+                        .productVariantId(orderItem.getProductVariant().getId())
+                        .productName(orderItem.getProductName())
+                        .productPrimaryImageUrl(orderItem.getProductVariant().getProduct().getPrimaryImageUrl())
+                        .variantName(orderItem.getVariantName())
+                        .sku(orderItem.getSku())
+                        .unitPrice(orderItem.getUnitPrice())
+                        .quantity(orderItem.getQuantity())
+                        .lineTotal(orderItem.getUnitPrice()
+                                .multiply(BigDecimal.valueOf(orderItem.getQuantity())))
+                        .build())
+                .toList();
+
+        OrderDetailResponse.PaymentResponse payment = paymentRepository
+                .findTopByOrderIdOrderByCreatedAtDesc(orderId)
+                .map(paymentEntity -> OrderDetailResponse.PaymentResponse.builder()
+                        .paymentId(paymentEntity.getId())
+                        .paymentCode(paymentEntity.getPaymentCode())
+                        .method(paymentEntity.getMethod())
+                        .status(paymentEntity.getStatus())
+                        .amount(paymentEntity.getAmount())
+                        .paidAt(paymentEntity.getPaidAt())
+                        .build())
+                .orElse(null);
+
+        return OrderDetailResponse.builder()
+                .orderId(order.getId())
+                .orderCode(order.getCode())
+                .status(order.getStatus())
+                .orderedAt(order.getOrderedAt())
+                .cancelledAt(order.getCancelledAt())
+                .completedAt(order.getCompletedAt())
+                .note(order.getNote())
+                .items(items)
+                .pricing(OrderDetailResponse.PricingResponse.builder()
+                        .subTotal(order.getSubTotal())
+                        .discountAmount(order.getDiscountAmount())
+                        .shippingFee(order.getShippingFee())
+                        .grandTotal(order.getGrandTotal())
+                        .build())
+                .shipping(OrderDetailResponse.ShippingResponse.builder()
+                        .recipientName(order.getRecipientName())
+                        .recipientPhone(order.getRecipientPhone())
+                        .shippingAddress(order.getShippingAddress())
+                        .build())
+                .payment(payment)
                 .build();
     }
 

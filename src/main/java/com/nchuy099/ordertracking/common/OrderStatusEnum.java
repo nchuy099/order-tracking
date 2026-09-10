@@ -1,7 +1,6 @@
 package com.nchuy099.ordertracking.common;
 
 public enum OrderStatusEnum {
-    AWAITING_PAYMENT,
     PENDING,
     CONFIRMED,
     PICKING,
