@@ -5,6 +5,7 @@ import com.nchuy099.ordertracking.dto.request.PlaceOrderRequest;
 import com.nchuy099.ordertracking.dto.response.OrderSummaryResponse;
 import com.nchuy099.ordertracking.dto.response.PlaceOrderResponse;
 import com.nchuy099.ordertracking.dto.response.OrderDetailResponse;
+import com.nchuy099.ordertracking.dto.response.OrderStatusResponse;
 
 import java.util.UUID;
 
@@ -16,3 +17,7 @@ public interface OrderService {
 
     OrderDetailResponse getDetails(UUID orderId);
 }
+
+    OrderStatusResponse confirmOrder(UUID orderId);
+
+    OrderStatusResponse rejectOrder(UUID orderId);

@@ -8,6 +8,7 @@ import com.nchuy099.ordertracking.dto.request.OrderSummaryRequest;
 import com.nchuy099.ordertracking.dto.request.PlaceOrderRequest;
 import com.nchuy099.ordertracking.dto.response.OrderSummaryResponse;
 import com.nchuy099.ordertracking.dto.response.OrderDetailResponse;
+import com.nchuy099.ordertracking.dto.response.OrderStatusResponse;
 import com.nchuy099.ordertracking.dto.response.PlaceOrderResponse;
 import com.nchuy099.ordertracking.entity.*;
 import com.nchuy099.ordertracking.exception.BusinessException;
@@ -231,6 +232,60 @@ public class OrderServiceImpl implements OrderService {
                 .build();
     }
 
+    @Override
+    @Transactional
+    public OrderStatusResponse confirmOrder(UUID orderId) {
+        OrderEntity order = getPendingOrder(orderId);
+        order.setStatus(OrderStatusEnum.CONFIRMED);
+        orderRepository.save(order);
+
+        return OrderStatusResponse.builder()
+                .orderId(order.getId())
+                .orderCode(order.getCode())
+                .status(order.getStatus())
+                .cancelledAt(order.getCancelledAt())
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public OrderStatusResponse rejectOrder(UUID orderId) {
+        OrderEntity order = getPendingOrder(orderId);
+        List<OrderItemEntity> orderItems = orderItemRepository.findAllByOrderIdWithProduct(orderId);
+
+        restoreInventoryWithLock(orderItems);
+
+        order.setStatus(OrderStatusEnum.CANCELLED);
+        order.setCancelledAt(LocalDateTime.now());
+        orderRepository.save(order);
+
+        return OrderStatusResponse.builder()
+                .orderId(order.getId())
+                .orderCode(order.getCode())
+                .status(order.getStatus())
+                .cancelledAt(order.getCancelledAt())
+                .build();
+    }
+
+    private OrderEntity getPendingOrder(UUID orderId) {
+        OrderEntity order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new BusinessException(
+                        "ORDER_NOT_FOUND",
+                        "Order not found",
+                        HttpStatus.NOT_FOUND
+                ));
+
+        if (order.getStatus() != OrderStatusEnum.PENDING) {
+            throw new BusinessException(
+                    "INVALID_ORDER_STATUS",
+                    "Only pending orders can be confirmed or rejected",
+                    HttpStatus.BAD_REQUEST
+            );
+        }
+
+        return order;
+    }
+
 
     private List<CartItemEntity> getCartItems(UserEntity user) {
         Optional<CartEntity> cartOpt = cartRepository.findByUserId(user.getId());
@@ -369,6 +424,25 @@ public class OrderServiceImpl implements OrderService {
 
 
         }
+    private void restoreInventoryWithLock(List<OrderItemEntity> orderItems) {
+        for (OrderItemEntity orderItem : orderItems) {
+            UUID productVariantId = orderItem.getProductVariant().getId();
+            List<InventoryEntity> inventories = inventoryRepository
+                    .findAllByProductVariantIdForUpdate(productVariantId);
+
+            if (inventories.isEmpty()) {
+                throw new BusinessException(
+                        "INVENTORY_NOT_FOUND",
+                        "Inventory not found for product variant",
+                        HttpStatus.NOT_FOUND
+                );
+            }
+
+            InventoryEntity inventory = inventories.getFirst();
+            inventory.setQuantityInStock(inventory.getQuantityInStock() + orderItem.getQuantity());
+        }
+    }
+
     }
 
     private void decreaseInventory(List<CartItemEntity> cartItems) {
