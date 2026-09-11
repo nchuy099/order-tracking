@@ -16,13 +16,10 @@ import com.nchuy099.ordertracking.entity.*;
 import com.nchuy099.ordertracking.exception.BusinessException;
 import com.nchuy099.ordertracking.repository.*;
 import com.nchuy099.ordertracking.service.OrderService;
+import com.nchuy099.ordertracking.service.builder.OrderResponseBuilder;
 import com.nchuy099.ordertracking.service.spec.OrderSpecification;
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.criteria.CriteriaBuilder;
-import jakarta.persistence.criteria.CriteriaQuery;
-import jakarta.persistence.criteria.JoinType;
-import jakarta.persistence.criteria.Predicate;
-import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.*;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -78,12 +75,7 @@ public class OrderServiceImpl implements OrderService {
         BigDecimal discountAmount = calculateDiscountAmount(request.getDiscountCode(), subTotal);
         BigDecimal shippingFee = DEFAULT_SHIPPING_FEE;
 
-        return OrderSummaryResponse.builder()
-                .subTotal(subTotal)
-                .discountAmount(discountAmount)
-                .shippingFee(shippingFee)
-                .grandTotal(subTotal.subtract(discountAmount).add(shippingFee))
-                .build();
+        return OrderResponseBuilder.buildOrderSummary(subTotal, discountAmount, shippingFee);
     }
 
     @Transactional
@@ -167,13 +159,7 @@ public class OrderServiceImpl implements OrderService {
         // del cart items
         cartItemRepository.deleteAll(cartItems);
 
-        return PlaceOrderResponse.builder()
-                .orderId(order.getId().toString())
-                .orderCode(order.getCode())
-                .paymentId(payment.getId().toString())
-                .paymentCode(payment.getPaymentCode())
-                .grandTotal(grandTotal)
-                .build();
+        return OrderResponseBuilder.buildPlaceOrder(order, payment, grandTotal);
     }
 
     @Override
@@ -206,31 +192,10 @@ public class OrderServiceImpl implements OrderService {
 
         OrderDetailResponse.PaymentResponse payment = paymentRepository
                 .findTopByOrderIdOrderByCreatedAtDesc(orderId)
-                .map(this::toPaymentResponse)
+                .map(OrderResponseBuilder::buildPayment)
                 .orElse(null);
 
-        return OrderDetailResponse.builder()
-                .orderId(order.getId())
-                .orderCode(order.getCode())
-                .status(order.getStatus())
-                .orderedAt(order.getOrderedAt())
-                .cancelledAt(order.getCancelledAt())
-                .completedAt(order.getCompletedAt())
-                .note(order.getNote())
-                .items(items)
-                .pricing(OrderDetailResponse.PricingResponse.builder()
-                        .subTotal(order.getSubTotal())
-                        .discountAmount(order.getDiscountAmount())
-                        .shippingFee(order.getShippingFee())
-                        .grandTotal(order.getGrandTotal())
-                        .build())
-                .shipping(OrderDetailResponse.ShippingResponse.builder()
-                        .recipientName(order.getRecipientName())
-                        .recipientPhone(order.getRecipientPhone())
-                        .shippingAddress(order.getShippingAddress())
-                        .build())
-                .payment(payment)
-                .build();
+        return OrderResponseBuilder.buildOrderDetail(order, items, payment);
     }
 
     @Override
@@ -260,11 +225,7 @@ public class OrderServiceImpl implements OrderService {
                 OrderStatusEnum.PENDING
         );
 
-        return DailyOrderSummaryResponse.builder()
-                .totalOrdersToday(summary.getTotalOrdersToday())
-                .deliveredOrdersToday(summary.getDeliveredOrdersToday())
-                .pendingOrdersToday(summary.getPendingOrdersToday())
-                .build();
+        return OrderResponseBuilder.buildDailyOrderSummary(summary);
     }
 
     @Override
@@ -274,12 +235,7 @@ public class OrderServiceImpl implements OrderService {
         order.setStatus(OrderStatusEnum.CONFIRMED);
         orderRepository.save(order);
 
-        return OrderStatusResponse.builder()
-                .orderId(order.getId())
-                .orderCode(order.getCode())
-                .status(order.getStatus())
-                .cancelledAt(order.getCancelledAt())
-                .build();
+        return OrderResponseBuilder.buildOrderStatus(order);
     }
 
     @Override
@@ -294,12 +250,7 @@ public class OrderServiceImpl implements OrderService {
         order.setCancelledAt(LocalDateTime.now());
         orderRepository.save(order);
 
-        return OrderStatusResponse.builder()
-                .orderId(order.getId())
-                .orderCode(order.getCode())
-                .status(order.getStatus())
-                .cancelledAt(order.getCancelledAt())
-                .build();
+        return OrderResponseBuilder.buildOrderStatus(order);
     }
 
     private OrderListResponse getOrderList(
@@ -344,13 +295,7 @@ public class OrderServiceImpl implements OrderService {
             }
         }
 
-        return OrderListResponse.builder()
-                .content(content)
-                .page(orders.getNumber())
-                .size(orders.getSize())
-                .totalElements(orders.getTotalElements())
-                .totalPages(orders.getTotalPages())
-                .build();
+        return OrderResponseBuilder.buildOrderList(orders, content);
     }
 
     private Page<OrderEntity> findOrders(Specification<OrderEntity> specification, Pageable pageable) {
@@ -383,7 +328,7 @@ public class OrderServiceImpl implements OrderService {
         orderRoot.fetch("user", JoinType.LEFT);
         Predicate orderPredicate = specification.toPredicate(orderRoot, orderQuery, criteriaBuilder);
 
-        List<jakarta.persistence.criteria.Order> orderBy = new ArrayList<>();
+        List<Order> orderBy = new ArrayList<>();
         for (Sort.Order sortOrder : sort) {
             if (sortOrder.isAscending()) {
                 orderBy.add(criteriaBuilder.asc(orderRoot.get(sortOrder.getProperty())));
@@ -408,7 +353,7 @@ public class OrderServiceImpl implements OrderService {
         for (OrderItemEntity orderItem : orderItemRepository.findAllByOrderIdInWithProduct(orderIds)) {
             UUID orderId = orderItem.getOrder().getId();
             itemsByOrderId.computeIfAbsent(orderId, ignored -> new ArrayList<>())
-                    .add(toOrderItemResponse(orderItem));
+                    .add(OrderResponseBuilder.buildOrderItem(orderItem));
         }
 
         return itemsByOrderId;
@@ -420,7 +365,7 @@ public class OrderServiceImpl implements OrderService {
         for (PaymentEntity payment : paymentRepository.findAllByOrderIdInOrderByCreatedAtDesc(orderIds)) {
             UUID orderId = payment.getOrder().getId();
             if (!paymentsByOrderId.containsKey(orderId)) {
-                paymentsByOrderId.put(orderId, toPaymentResponse(payment));
+                paymentsByOrderId.put(orderId, OrderResponseBuilder.buildPayment(payment));
             }
         }
 
@@ -433,64 +378,17 @@ public class OrderServiceImpl implements OrderService {
             OrderDetailResponse.PaymentResponse payment,
             boolean includeCustomerName
     ) {
-        return OrderListResponse.OrderResponse.builder()
-                .orderId(order.getId())
-                .orderCode(order.getCode())
-                .status(order.getStatus())
-                .orderedAt(order.getOrderedAt())
-                .cancelledAt(order.getCancelledAt())
-                .completedAt(order.getCompletedAt())
-                .note(order.getNote())
-                .customerName(includeCustomerName ? order.getUser().getFullName() : null)
-                .items(items)
-                .pricing(OrderDetailResponse.PricingResponse.builder()
-                        .subTotal(order.getSubTotal())
-                        .discountAmount(order.getDiscountAmount())
-                        .shippingFee(order.getShippingFee())
-                        .grandTotal(order.getGrandTotal())
-                        .build())
-                .shipping(OrderDetailResponse.ShippingResponse.builder()
-                        .recipientName(order.getRecipientName())
-                        .recipientPhone(order.getRecipientPhone())
-                        .shippingAddress(order.getShippingAddress())
-                        .build())
-                .payment(payment)
-                .build();
+        return OrderResponseBuilder.buildOrderListItem(order, items, payment, includeCustomerName);
     }
 
     private List<OrderDetailResponse.OrderItemResponse> toOrderItemResponses(List<OrderItemEntity> orderItems) {
         List<OrderDetailResponse.OrderItemResponse> items = new ArrayList<>();
 
         for (OrderItemEntity orderItem : orderItems) {
-            items.add(toOrderItemResponse(orderItem));
+            items.add(OrderResponseBuilder.buildOrderItem(orderItem));
         }
 
         return items;
-    }
-
-    private OrderDetailResponse.OrderItemResponse toOrderItemResponse(OrderItemEntity orderItem) {
-        return OrderDetailResponse.OrderItemResponse.builder()
-                .orderItemId(orderItem.getId())
-                .productVariantId(orderItem.getProductVariant().getId())
-                .productName(orderItem.getProductName())
-                .productPrimaryImageUrl(orderItem.getProductVariant().getProduct().getPrimaryImageUrl())
-                .variantName(orderItem.getVariantName())
-                .sku(orderItem.getSku())
-                .unitPrice(orderItem.getUnitPrice())
-                .quantity(orderItem.getQuantity())
-                .lineTotal(orderItem.getUnitPrice().multiply(BigDecimal.valueOf(orderItem.getQuantity())))
-                .build();
-    }
-
-    private OrderDetailResponse.PaymentResponse toPaymentResponse(PaymentEntity payment) {
-        return OrderDetailResponse.PaymentResponse.builder()
-                .paymentId(payment.getId())
-                .paymentCode(payment.getPaymentCode())
-                .method(payment.getMethod())
-                .status(payment.getStatus())
-                .amount(payment.getAmount())
-                .paidAt(payment.getPaidAt())
-                .build();
     }
 
     private List<OrderStatusEnum> parseStatuses(List<String> rawStatuses) {

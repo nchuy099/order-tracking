@@ -1,11 +1,14 @@
 package com.nchuy099.ordertracking.service;
 
+import com.nchuy099.ordertracking.common.ExportFileFormatEnum;
 import com.nchuy099.ordertracking.dto.request.CreateProductRequest;
 import com.nchuy099.ordertracking.dto.response.ProductDetailResponse;
 import com.nchuy099.ordertracking.dto.response.ProductListResponse;
 import com.nchuy099.ordertracking.dto.response.ProductSummaryResponse;
+import com.nchuy099.ordertracking.dto.response.ProductVariantListResponse;
 import com.nchuy099.ordertracking.entity.ProductEntity;
 
+import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.util.UUID;
 
@@ -23,6 +26,24 @@ public interface ProductService {
             int page,
             int size
     );
+
+    ProductVariantListResponse searchVariants(
+            String keyword,
+            BigDecimal minPrice,
+            BigDecimal maxPrice,
+            String stockStatus,
+            int page,
+            int size
+    );
+
+    void exportVariants(
+            String keyword,
+            BigDecimal minPrice,
+            BigDecimal maxPrice,
+            String stockStatus,
+            ExportFileFormatEnum exportFormat,
+            OutputStream outputStream
+    ) throws java.io.IOException;
 
     ProductListResponse getHighlighted(int page, int size);
 
